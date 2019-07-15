@@ -1,6 +1,6 @@
 import math
 
-from ByteIO import ByteIO
+from HeroForge.ByteIO import ByteIO
 
 
 class HeroGeomerty:
