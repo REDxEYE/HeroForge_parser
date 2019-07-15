@@ -1,14 +1,19 @@
+import random
 from pathlib import Path
 
 from . import HeroForge
 
 import bpy
 
+from .ByteIO import split
+
+
 class HeroIO:
     def __init__(self, path: str = ''):
         self.path = Path(path)
         self.name = self.path.stem
-
+        self.hero = HeroForge.HeroFile(self.path)
+        self.hero.read()
 
         self.armature_obj = None
         self.armature = None
@@ -114,94 +119,57 @@ class HeroIO:
 
         return mat_ind
 
-    def remap_materials(self, used_materials, all_materials):
-        remap = {}
-        for n, used_material in enumerate(used_materials):
-            remap[all_materials.index(used_material)] = n
 
-        return remap
+    def build_meshes(self):
+        mesh_obj = bpy.data.objects.new(self.hero.name, bpy.data.meshes.new(self.hero.name+'_MESH'))
+        bpy.context.scene.objects.link(mesh_obj)
+        mesh = mesh_obj.data
+        if self.armature_obj:
+            mesh_obj.parent = self.armature_obj
 
-    @staticmethod
-    def strip_to_list(indices):
-        new_indices = []
-        for v in range(0, len(indices) - 2):
-            if v & 1:
-                new_indices.append(indices[v])
-                new_indices.append(indices[v + 1])
-                new_indices.append(indices[v + 2])
-            else:
-                new_indices.append(indices[v])
-                new_indices.append(indices[v + 2])
-                new_indices.append(indices[v + 1])
-        new_indices = list(filter(lambda a: len(set(a)) == 3, split(new_indices)))
-        return new_indices
+            modifier = mesh_obj.modifiers.new(type="ARMATURE", name="Armature")
+            modifier.object = self.armature_obj
 
-    def build_meshes(self, mesh_data):
+        # bones = [bone_list[i] for i in remap_list]
 
-        # base_name = mesh_data['name']
-        for m, (mesh_id, mat_id) in enumerate(mesh_data['mesh_data']):
-            mesh_json = self.model_json['meshes'][mesh_id]
-            # pprint(mesh_json)
-            mat_json = self.model_json['materials'][mat_id]
-            name = mesh_json['name']
-            mesh_obj = bpy.data.objects.new(name, bpy.data.meshes.new(name))
-            bpy.context.scene.objects.link(mesh_obj)
-            mesh = mesh_obj.data
-            if self.armature_obj:
-                mesh_obj.parent = self.armature_obj
-
-                modifier = mesh_obj.modifiers.new(type="ARMATURE", name="Armature")
-                modifier.object = self.armature_obj
-
-            # bones = [bone_list[i] for i in remap_list]
-
-            if mesh_data['bones']:
-                print('Bone list available, creating vertex groups')
-                weight_groups = {bone['name']: mesh_obj.vertex_groups.new(bone['name']) for bone in
-                                 mesh_data['bones']}
-            uvs = mesh_json['vertices']['uv']
-            print('Building mesh:', name)
-            print('Mesh mode:', mesh_json['mode'])
-            # new_indices = split(mesh_json['indices'])
-
-            new_indices = self.strip_to_list(mesh_json['indices'])
-            # if len(new_indices) % 3 != 0:
-            #     print('Indices:', len(new_indices) / 3)
-            #     print('Skipping')
-            #     continue
-            mesh.from_pydata(mesh_json['vertices']['pos'], [], new_indices)
-            mesh.update()
-            mesh.uv_textures.new()
-            uv_data = mesh.uv_layers[0].data
-            for i in range(len(uv_data)):
-                u = uvs[mesh.loops[i].vertex_index]
-                uv_data[i].uv = u
-            if mesh_data['bones']:
-                for n, (bones, weights) in enumerate(
-                        zip(mesh_json['vertices']['weight']['bone'], mesh_json['vertices']['weight']['weight'])):
-                    for bone, weight in zip(bones, weights):
-                        if weight != 0:
-                            # if bone in mesh_data['bone_map']:
-                            bone_id = mesh_data['bone_map'][m][bone]
-                            bone_name = mesh_data['name_list'][str(bone_id)]  # ['name']
-                            weight_groups[bone_name].add([n], weight / 255, 'REPLACE')
-            self.get_material(mat_json['name'], mesh_obj)
-            bpy.ops.object.select_all(action="DESELECT")
-            mesh_obj.select = True
-            bpy.context.scene.objects.active = mesh_obj
-            bpy.ops.object.shade_smooth()
-            # mesh.normals_split_custom_set(normals)
-            mesh.use_auto_smooth = True
+        # if mesh_data['bones']:
+        #     print('Bone list available, creating vertex groups')
+        #     weight_groups = {bone['name']: mesh_obj.vertex_groups.new(bone['name']) for bone in
+        #                      mesh_data['bones']}
+        uvs = self.hero.geometry.uv
+        print('Building mesh:', self.hero.name)
+        mesh.from_pydata(self.hero.geometry.positions, [], split(self.hero.geometry.index))
+        mesh.update()
+        mesh.uv_textures.new()
+        uv_data = mesh.uv_layers[0].data
+        for i in range(len(uv_data)):
+            u = uvs[mesh.loops[i].vertex_index]
+            uv_data[i].uv = u
+        # if mesh_data['bones']:
+        #     for n, (bones, weights) in enumerate(
+        #             zip(mesh_json['vertices']['weight']['bone'], mesh_json['vertices']['weight']['weight'])):
+        #         for bone, weight in zip(bones, weights):
+        #             if weight != 0:
+        #                 # if bone in mesh_data['bone_map']:
+        #                 bone_id = mesh_data['bone_map'][m][bone]
+        #                 bone_name = mesh_data['name_list'][str(bone_id)]  # ['name']
+        #                 weight_groups[bone_name].add([n], weight / 255, 'REPLACE')
+        self.get_material('WHITE', mesh_obj)
+        bpy.ops.object.select_all(action="DESELECT")
+        mesh_obj.select = True
+        bpy.context.scene.objects.active = mesh_obj
+        bpy.ops.object.shade_smooth()
+        # mesh.normals_split_custom_set(normals)
+        mesh.use_auto_smooth = True
 
     def create_models(self):
-        for model in self.model_json['models'].values():
-            # pprint(model)
-            if model['bones']:
-                self.create_skeleton(model['bones'], self.join_bones)
-            else:
-                self.armature = None
-                self.armature_obj = None
-            self.build_meshes(model)
+        if self.hero.geometry.main_skeleton:
+            pass
+            # self.create_skeleton()
+        else:
+            self.armature = None
+            self.armature_obj = None
+        self.build_meshes()
 
     # def add_flexes(self, mdlmodel: MDL_DATA.SourceMdlModel):
     #     # Creating base shape key
@@ -229,7 +197,3 @@ class HeroIO:
     #                 fx, fy, fz = flex_vert.the_delta
     #                 self.mesh_obj.data.shape_keys.key_blocks[flex_name].data[vertex_index].co = (
     #                     fx + vx, fy + vy, fz + vz)
-
-
-if __name__ == '__main__':
-    a = PRPIO(r"D:\SteamLibrary\steamapps\common\Overlord II\Resources\dump\Character Minion Bard\model.json")

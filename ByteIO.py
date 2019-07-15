@@ -9,6 +9,8 @@ from typing import List
 class OffsetOutOfBounds(Exception):
     pass
 
+def split(array, n=3):
+    return [array[i:i + n] for i in range(0, len(array), n)]
 
 class ByteIO:
     @contextlib.contextmanager

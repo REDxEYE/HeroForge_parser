@@ -1,6 +1,8 @@
 import math
 
-from HeroForge.ByteIO import ByteIO
+from pathlib import Path
+
+from .ByteIO import ByteIO
 
 
 class HeroGeomerty:
@@ -20,8 +22,9 @@ class HeroFile:
     me = (2 ** 8) - 1
     ge = (2 ** 16) - 1
 
-    def __init__(self, reader: ByteIO):
-        self.reader = reader
+    def __init__(self, path):
+        self.reader = ByteIO(path=path)
+        self.name = Path(path).name
         self.version = 0
         self.i32_count = 0
         self.i16_count = 0
@@ -89,6 +92,7 @@ class HeroFile:
         self._init_indices()
         self._init_points()
         self._init_normals()
+        self._init_uvs()
 
     def get_bit(self):
         self.bit_cursor += 1
@@ -103,7 +107,7 @@ class HeroFile:
         e = 20
         if self.version >= 1.4:
             e += 4
-            self.export_time = r.read_float()
+            self.export_time = reader.read_float()
         self.i32_offset = e
         self.i16_offset = self.i32_offset + 4 * self.i32_count
         self.i8_offset = self.i16_offset + 2 * self.i16_count
@@ -181,7 +185,6 @@ class HeroFile:
 
 
 if __name__ == '__main__':
-    r = ByteIO(path='hf_bodyUpper_loRez_dragon.ckb')
-    a = HeroFile(r)
+    a = HeroFile('hf_bodyUpper_loRez_dragon.ckb')
     a.read()
     print(a)
