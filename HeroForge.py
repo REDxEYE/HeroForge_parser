@@ -16,6 +16,8 @@ class HeroGeomerty:
         self.main_skeleton = False
         self.has_geometry = False
         self.bounds = []
+        self.scale = []
+        self.offset = []
 
 
 class HeroFile:
@@ -150,15 +152,22 @@ class HeroFile:
             vertex_count = self.read_uint32() if self.options['indices32bit'] else self.read_uint16()
             self.vertex_count = vertex_count
             self.geometry.has_geometry = True
+            # Z Y X
             t = [self.read_float() for _ in range(6)]
-            i = [t[3] - t[0], t[4] - t[1], t[5] - t[2]]
+            i = [t[3] - t[0], t[4] - t[1], (t[5] - t[2])]
+            tmp =                   [t[5] * i[2], t[3] * i[0], t[4] * i[1]]
+            self.geometry.offset =  [t[2] * i[2], t[0] * i[0], t[1] * i[1]]
             self.geometry.bounds = [t[0:3], t[3:6]]
+            # self.geometry.scale = [i[2], i[0]*0.5, i[1]*0.5]
+            self.geometry.scale = [i[2], i[0], i[1]]
+            print('{:50} SCALE X:{:10.5} Y:{:10.5} Z:{:10.5}  OFFSET  X:{:10.5} Y:{:10.5} Z:{:10.5} ||||| X:{:10.5} Y:{:10.5} Z:{:10.5}'.format(self.name, *self.geometry.scale, *self.geometry.offset,*tmp))
             verts = []
             for _ in range(vertex_count):
-                verts.append((self.read_uint16() / self.ge * i[0] + t[0],
-                              self.read_uint16() / self.ge * i[1] + t[1],
-                              self.read_uint16() / self.ge * i[2] + t[2]))
-            self.geometry.positions = verts
+                verts.append((self.read_uint16() / self.ge,  # * (i[2]),
+                              self.read_uint16() / self.ge,  # * (i[0] * 0.5),
+                              self.read_uint16() / self.ge,  # * (i[1])
+                              ))
+                self.geometry.positions = verts
 
     def _init_normals(self):
         if self.options['normals']:

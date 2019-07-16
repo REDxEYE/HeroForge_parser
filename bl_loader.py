@@ -12,7 +12,7 @@ class HeroIO:
     def __init__(self, path: str = ''):
         self.path = Path(path)
         self.name = self.path.stem
-        self.hero = HeroForge.HeroFile(self.path)
+        self.hero = HeroForge.HeroFile(path)
         self.hero.read()
 
         self.armature_obj = None
@@ -140,6 +140,8 @@ class HeroIO:
         print('Building mesh:', self.hero.name)
         mesh.from_pydata(self.hero.geometry.positions, [], split(self.hero.geometry.index))
         mesh.update()
+        mesh_obj.scale = self.hero.geometry.scale
+        mesh_obj.location = self.hero.geometry.offset
         mesh.uv_textures.new()
         uv_data = mesh.uv_layers[0].data
         for i in range(len(uv_data)):
