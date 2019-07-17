@@ -119,9 +119,8 @@ class HeroIO:
 
         return mat_ind
 
-
     def build_meshes(self):
-        mesh_obj = bpy.data.objects.new(self.hero.name, bpy.data.meshes.new(self.hero.name+'_MESH'))
+        mesh_obj = bpy.data.objects.new(self.hero.name, bpy.data.meshes.new(self.hero.name + '_MESH'))
         bpy.context.scene.objects.link(mesh_obj)
         mesh = mesh_obj.data
         if self.armature_obj:
@@ -140,7 +139,7 @@ class HeroIO:
         print('Building mesh:', self.hero.name)
         mesh.from_pydata(self.hero.geometry.positions, [], split(self.hero.geometry.index))
         mesh.update()
-        mesh_obj.scale = self.hero.geometry.scale
+        # mesh_obj.scale = self.hero.geometry.scale
         mesh_obj.location = self.hero.geometry.offset
         mesh.uv_textures.new()
         uv_data = mesh.uv_layers[0].data
@@ -161,8 +160,11 @@ class HeroIO:
         mesh_obj.select = True
         bpy.context.scene.objects.active = mesh_obj
         bpy.ops.object.shade_smooth()
+        mesh.normals_split_custom_set_from_vertices(self.hero.geometry.normals)
         # mesh.normals_split_custom_set(normals)
         mesh.use_auto_smooth = True
+        self.mesh_data = mesh
+        self.mesh_obj = mesh_obj
 
     def create_models(self):
         if self.hero.geometry.main_skeleton:
@@ -172,30 +174,21 @@ class HeroIO:
             self.armature = None
             self.armature_obj = None
         self.build_meshes()
+        self.add_flexes()
 
-    # def add_flexes(self, mdlmodel: MDL_DATA.SourceMdlModel):
-    #     # Creating base shape key
-    #     self.mesh_obj.shape_key_add(name='base')
-    #
-    #     # Going through all flex frames in SourceMdlModel
-    #     for flex_frame in mdlmodel.flex_frames:
-    #
-    #         # Now for every flex and vertex_offset(bodyAndMeshVertexIndexStarts)
-    #         for flex, vertex_offset in zip(flex_frame.flexes, flex_frame.vertex_offsets):
-    #
-    #             flex_desc = self.MDL.file_data.flex_descs[flex.flex_desc_index]
-    #             flex_name = flex_desc.name
-    #             # if blender mesh_data does not have FLEX_NAME - create it,
-    #             # otherwise work with existing
-    #             if not self.mesh_obj.data.shape_keys.key_blocks.get(flex_name):
-    #                 self.mesh_obj.shape_key_add(name=flex_name)
-    #
-    #             # iterating over all VertAnims
-    #             for flex_vert in flex.the_vert_anims:  # type: MDL_DATA.SourceMdlVertAnim
-    #                 vertex_index = flex_vert.index + vertex_offset  # <- bodyAndMeshVertexIndexStarts
-    #                 vx = self.mesh_obj.data.vertices[vertex_index].co.x
-    #                 vy = self.mesh_obj.data.vertices[vertex_index].co.y
-    #                 vz = self.mesh_obj.data.vertices[vertex_index].co.z
-    #                 fx, fy, fz = flex_vert.the_delta
-    #                 self.mesh_obj.data.shape_keys.key_blocks[flex_name].data[vertex_index].co = (
-    #                     fx + vx, fy + vy, fz + vz)
+    def add_flexes(self):
+        # Creating base shape key
+        self.mesh_obj.shape_key_add(name='base')
+        for flex_name, flex_data in self.hero.geometry.shape_key_data.items():
+            # if blender mesh_data does not have FLEX_NAME - create it,
+            # otherwise work with existing
+            if not self.mesh_obj.data.shape_keys.key_blocks.get(flex_name):
+                self.mesh_obj.shape_key_add(name=flex_name)
+
+            for vertex_index, flex_vert in enumerate(flex_data):
+                # vx = self.mesh_obj.data.vertices[vertex_index].co.x
+                # vy = self.mesh_obj.data.vertices[vertex_index].co.y
+                # vz = self.mesh_obj.data.vertices[vertex_index].co.z
+                fx, fy, fz = flex_vert
+                self.mesh_obj.data.shape_keys.key_blocks[flex_name].data[vertex_index].co = (
+                    fx, fy, fz)
