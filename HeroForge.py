@@ -14,10 +14,10 @@ class HeroGeomerty:
         self.uv2 = []
         self.vertex_colors = {}
         self.shape_key_data = {}
-        self.skin_indices = []
-        self.additional_skin_indices = []
-        self.skin_weights = []
-        self.additional_skin_weights = []
+        self.skin_indices = np.array([])  # type:np.ndarray
+        self.additional_skin_indices = np.array([])  # type:np.ndarray
+        self.skin_weights = np.array([])  # type:np.ndarray
+        self.additional_skin_weights = np.array([])  # type:np.ndarray
         self.original_indices = []
         self.main_skeleton = False
         self.has_geometry = False
@@ -255,8 +255,8 @@ class HeroFile:
                         for t in range(self.vertex_count):
                             additional_skin_indices[t * additional_weights + (l - 4)] = self.read_uint16(
                                 2 * (t * additional_weights + l), False)
-            self.geometry.skin_indices = split(skin_indices, weight_per_vert)
-            self.geometry.additional_skin_indices = split(additional_skin_indices, weight_per_vert)
+            self.geometry.skin_indices = skin_indices.reshape((-1,weight_per_vert,))
+            self.geometry.additional_skin_indices = additional_skin_indices.reshape((-1,weight_per_vert,))
             self.i16_offset = self.i16_offset + weight_per_vert * self.vertex_count * 2;
             skin_weights = np.zeros(4 * self.vertex_count, dtype=np.float32)
             additional_skin_weights = np.zeros(additional_weights * self.vertex_count, dtype=np.float32)
@@ -270,8 +270,8 @@ class HeroFile:
                         for c in range(self.vertex_count):
                             additional_skin_weights[c * additional_weights + (f - 4)] = self.read_uint16(
                                 2 * (c * weight_per_vert + f), False) / self.ge
-            self.geometry.skin_weights = split(skin_weights, weight_per_vert)
-            self.geometry.additional_skin_weights = split(additional_skin_weights, weight_per_vert)
+            self.geometry.skin_weights = skin_weights.reshape((-1,weight_per_vert))
+            self.geometry.additional_skin_weights = additional_skin_weights.reshape((-1,weight_per_vert))
             self.i16_offset = self.i16_offset + weight_per_vert * self.vertex_count * 2
 
     def _init_parent(self):
@@ -285,8 +285,8 @@ class HeroFile:
                 r[n] = e if n % 4 == 0 else 0
                 i[n] = 1 if n % 4 == 0 else 0
 
-            self.geometry.skin_indices = r
-            self.geometry.skin_weights = i
+            self.geometry.skin_indices = r.reshape((-1,4))
+            self.geometry.skin_weights = i.reshape((-1,4))
 
 
 if __name__ == '__main__':

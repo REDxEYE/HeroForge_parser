@@ -131,10 +131,11 @@ class HeroIO:
 
         # bones = [bone_list[i] for i in remap_list]
 
-        # if mesh_data['bones']:
-        #     print('Bone list available, creating vertex groups')
-        #     weight_groups = {bone['name']: mesh_obj.vertex_groups.new(bone['name']) for bone in
-        #                      mesh_data['bones']}
+        if len(self.hero.geometry.skin_indices):
+            indices = set(self.hero.geometry.skin_indices.reshape((-1,)))
+            # print(indices)
+            weight_groups = {str(bone): mesh_obj.vertex_groups.new(str(bone)) for bone in
+                             indices}
         uvs = self.hero.geometry.uv
         print('Building mesh:', self.hero.name)
         mesh.from_pydata(self.hero.geometry.positions, [], split(self.hero.geometry.index))
@@ -146,15 +147,13 @@ class HeroIO:
         for i in range(len(uv_data)):
             u = uvs[mesh.loops[i].vertex_index]
             uv_data[i].uv = u
-        # if mesh_data['bones']:
-        #     for n, (bones, weights) in enumerate(
-        #             zip(mesh_json['vertices']['weight']['bone'], mesh_json['vertices']['weight']['weight'])):
-        #         for bone, weight in zip(bones, weights):
-        #             if weight != 0:
-        #                 # if bone in mesh_data['bone_map']:
-        #                 bone_id = mesh_data['bone_map'][m][bone]
-        #                 bone_name = mesh_data['name_list'][str(bone_id)]  # ['name']
-        #                 weight_groups[bone_name].add([n], weight / 255, 'REPLACE')
+        if len(self.hero.geometry.skin_indices):
+            for n, (bones, weights) in enumerate(zip(self.hero.geometry.skin_indices,self.hero.geometry.skin_weights)):
+                for bone, weight in zip(bones, weights):
+                    if weight != 0:
+                        # if bone in mesh_data['bone_map']:
+                        bone_name = str(bone)  # ['name']
+                        weight_groups[bone_name].add([n], weight, 'REPLACE')
         self.get_material('WHITE', mesh_obj)
         bpy.ops.object.select_all(action="DESELECT")
         mesh_obj.select = True
