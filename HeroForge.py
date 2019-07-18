@@ -1,5 +1,5 @@
 import math
-
+import numpy as np
 from pathlib import Path
 
 from .ByteIO import ByteIO, split
@@ -14,9 +14,14 @@ class HeroGeomerty:
         self.uv2 = []
         self.vertex_colors = {}
         self.shape_key_data = {}
+        self.skin_indices = []
+        self.additional_skin_indices = []
+        self.skin_weights = []
+        self.additional_skin_weights = []
         self.original_indices = []
         self.main_skeleton = False
         self.has_geometry = False
+        self.skinned = False
         self.bounds = []
         self.scale = []
         self.offset = []
@@ -48,32 +53,33 @@ class HeroFile:
         self.geometry = HeroGeomerty()
         self.vertex_count = 0
 
-    def read_float(self):
-        self.reader.seek(self.i32_offset)
+    def read_float(self, offset=0):
+        self.reader.seek(self.i32_offset + offset)
         ret = self.reader.read_float()
         self.i32_offset += 4
         return ret
 
-    def read_uint32(self):
-        self.reader.seek(self.i32_offset)
+    def read_uint32(self, offset=0):
+        self.reader.seek(self.i32_offset + offset)
         val = self.read_float()
         ret = round(val)
         return ret
 
-    def read_uint16(self):
-        self.reader.seek(self.i16_offset)
+    def read_uint16(self, offset=0, increment=True):
+        self.reader.seek(self.i16_offset + offset)
         ret = self.reader.read_uint16()
-        self.i16_offset += 2
+        if increment:
+            self.i16_offset += 2
         return ret
 
-    def read_int8(self):
-        self.reader.seek(self.i8_offset)
+    def read_int8(self, offset=0):
+        self.reader.seek(self.i8_offset + offset)
         ret = self.reader.read_uint8()
         self.i8_offset += 1
         return ret
 
-    def read_string(self):
-        self.reader.seek(self.i8_offset)
+    def read_string(self, offset=0):
+        self.reader.seek(self.i8_offset + offset)
         l = self.read_int8()
         ret = self.reader.read_ascii_string(l)
         self.i8_offset += len(ret)
@@ -101,6 +107,8 @@ class HeroFile:
         self._init_uvs()
         self._init_vertex_colors()
         self._init_blends()
+        self._init_weights()
+        self._init_parent()
 
     def get_bit(self):
         self.bit_cursor += 1
@@ -230,8 +238,57 @@ class HeroFile:
                             self.get_bit()
                 self.geometry.shape_key_data = shape_key_data
 
+    def _init_weights(self):
+        if self.options['weights']:
+            self.geometry.skinned = True
+            weight_per_vert = self.read_int8()
+            additional_weights = max(0, weight_per_vert - 4)
+            skin_indices = np.zeros(4 * self.vertex_count, dtype=np.int16)
+            additional_skin_indices = np.zeros(additional_weights * self.vertex_count, dtype=np.int16)
+            u = 4 if weight_per_vert < 4 else weight_per_vert
+            for l in range(u):
+                if weight_per_vert > l:
+                    if l < 4:
+                        for t in range(self.vertex_count):
+                            skin_indices[4 * t + l] = self.read_uint16(2 * (t * weight_per_vert + l), False)
+                    else:
+                        for t in range(self.vertex_count):
+                            additional_skin_indices[t * additional_weights + (l - 4)] = self.read_uint16(
+                                2 * (t * additional_weights + l), False)
+            self.geometry.skin_indices = split(skin_indices, weight_per_vert)
+            self.geometry.additional_skin_indices = split(additional_skin_indices, weight_per_vert)
+            self.i16_offset = self.i16_offset + weight_per_vert * self.vertex_count * 2;
+            skin_weights = np.zeros(4 * self.vertex_count, dtype=np.float32)
+            additional_skin_weights = np.zeros(additional_weights * self.vertex_count, dtype=np.float32)
+            u = 4 if weight_per_vert < 4 else weight_per_vert
+            for f in range(u):
+                if weight_per_vert > f:
+                    if f < 4:
+                        for c in range(self.vertex_count):
+                            skin_weights[4 * c + f] = self.read_uint16(2 * (c * weight_per_vert + f), False) / self.ge
+                    else:
+                        for c in range(self.vertex_count):
+                            additional_skin_weights[c * additional_weights + (f - 4)] = self.read_uint16(
+                                2 * (c * weight_per_vert + f), False) / self.ge
+            self.geometry.skin_weights = split(skin_weights, weight_per_vert)
+            self.geometry.additional_skin_weights = split(additional_skin_weights, weight_per_vert)
+            self.i16_offset = self.i16_offset + weight_per_vert * self.vertex_count * 2
 
-# https://www.heroforge.com/forge_static/herobundles/bodyLower/dragon/hf_bodyLower_hiRez_dragon.ckb?version=3.0.7
+    def _init_parent(self):
+        if self.options['singleParent']:
+            name = self.read_string()
+            e = self.read_uint16()
+            r = np.zeros(4 * self.vertex_count)
+            i = np.zeros(4 * self.vertex_count)
+            a = 4 * self.vertex_count
+            for n in range(a):
+                r[n] = e if n % 4 == 0 else 0
+                i[n] = 1 if n % 4 == 0 else 0
+
+            self.geometry.skin_indices = r
+            self.geometry.skin_weights = i
+
+
 if __name__ == '__main__':
     a = HeroFile('hf_bodyUpper_loRez_dragon.ckb')
     a.read()
