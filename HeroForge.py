@@ -66,15 +66,15 @@ class HeroFile:
         self.i16_offset += 2
         return ret
 
-    def read_uint8(self):
+    def read_int8(self):
         self.reader.seek(self.i8_offset)
-        ret = self.reader.read_int8()
+        ret = self.reader.read_uint8()
         self.i8_offset += 1
         return ret
 
     def read_string(self):
         self.reader.seek(self.i8_offset)
-        l = self.read_uint8()
+        l = self.read_int8()
         ret = self.reader.read_ascii_string(l)
         self.i8_offset += len(ret)
         return ret
@@ -127,13 +127,16 @@ class HeroFile:
                               "originalIndices", "vertexColors"]
         if self.version >= 1.2:
             default_attributes.append('posGroups')
+        t = 32
         if self.version >= 1.25:
             default_attributes.append('uvSeams')
             default_attributes.append('rivets')
+            t -= 2
         r = {}
         for attr in default_attributes:
             r[attr] = self.get_bit()
         if self.version >= 1.2:
+            self.bit_cursor += t
             self.options = r
             self.geometry.main_skeleton = not self.options['addon'] and self.options['weights']
 
@@ -156,15 +159,15 @@ class HeroFile:
             self.vertex_count = vertex_count
             self.geometry.has_geometry = True
             # Z Y X
-            t = [self.read_float() for _ in range(6)]
-            i = [t[3] - t[0], t[4] - t[1], (t[5] - t[2])]
-            self.geometry.offset = [t[0] * i[0], t[1] * i[1], t[2] * i[2]]
-            self.geometry.bounds = [t[0:3], t[3:6]]
+            bbox = [self.read_float() for _ in range(6)]
+            scale = [bbox[3] - bbox[0], bbox[4] - bbox[1], (bbox[5] - bbox[2])]
+            self.geometry.offset = [bbox[0] * scale[0], bbox[1] * scale[1], bbox[2] * scale[2]]
+            self.geometry.bounds = [bbox[0:3], bbox[3:6]]
             verts = []
             for _ in range(vertex_count):
-                verts.append((self.read_uint16() / self.ge * i[0],
-                              self.read_uint16() / self.ge * i[1],
-                              self.read_uint16() / self.ge * i[2]
+                verts.append((self.read_uint16() / self.ge * scale[0] + bbox[0],
+                              self.read_uint16() / self.ge * scale[1] + bbox[1],
+                              self.read_uint16() / self.ge * scale[2] + bbox[2]
                               ))
                 self.geometry.positions = verts
 
@@ -174,9 +177,10 @@ class HeroFile:
                 normals = []
                 r = 0
                 for _ in range(self.vertex_count):
-                    normals.append(self.read_uint8() / self.me * 2 - 1)
-                    normals.append(self.read_uint8() / self.me * 2 - 1)
-                    normals.append((2 * self.get_bit() - 1) * (1 - normals[r] ** 2 - normals[r + 1] ** 2))
+                    normals.append(self.read_int8() / self.me * 2 - 1)
+                    normals.append(self.read_int8() / self.me * 2 - 1)
+                    normals.append(
+                        (2 * self.get_bit() - 1) * (1 - math.pow(normals[r], 2) - math.pow(normals[r + 1], 2)))
                     r += 3
                 self.geometry.normals = split(normals, 3)
 
@@ -193,12 +197,12 @@ class HeroFile:
 
     def _init_vertex_colors(self):
         if self.options['vertexColors']:
-            layer_count = self.read_uint8()
+            layer_count = self.read_int8()
             for t in range(layer_count):
                 layer_name = self.read_string()
                 v_colors = []
                 for _ in range(self.vertex_count):
-                    col = self.read_uint8()
+                    col = self.read_int8()
                     v_colors.append(col / 255)
                     v_colors.append(col / 255)
                     v_colors.append(col / 255)
@@ -206,7 +210,7 @@ class HeroFile:
 
     def _init_blends(self):
         if self.options['blendTargets']:
-            shape_key_count = self.read_uint8()
+            shape_key_count = self.read_int8()
             if shape_key_count:
                 shape_key_data = {}
                 for shape_key_id in range(shape_key_count):
@@ -215,18 +219,19 @@ class HeroFile:
                     u = [o[3] - o[0], o[4] - o[1], o[5] - o[2]]
                     c = []
                     for d in range(self.vertex_count):
-                        c.append(self.geometry.positions[d][0] + self.read_uint8() / self.me * u[0] + o[0])
-                        c.append(self.geometry.positions[d][1] + self.read_uint8() / self.me * u[1] + o[1])
-                        c.append(self.geometry.positions[d][2] + self.read_uint8() / self.me * u[2] + o[2])
+                        c.append(self.read_int8() / self.me * u[0] + o[0])
+                        c.append(self.read_int8() / self.me * u[1] + o[1])
+                        c.append(self.read_int8() / self.me * u[2] + o[2])
                     shape_key_data[shape_key_name] = split(c, 3)
                     if self.options['blendNormals']:
                         for _ in range(self.vertex_count):
-                            self.read_uint8()
-                            self.read_uint8()
+                            self.read_int8()
+                            self.read_int8()
                             self.get_bit()
                 self.geometry.shape_key_data = shape_key_data
 
 
+# https://www.heroforge.com/forge_static/herobundles/bodyLower/dragon/hf_bodyLower_hiRez_dragon.ckb?version=3.0.7
 if __name__ == '__main__':
     a = HeroFile('hf_bodyUpper_loRez_dragon.ckb')
     a.read()

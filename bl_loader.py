@@ -140,7 +140,7 @@ class HeroIO:
         mesh.from_pydata(self.hero.geometry.positions, [], split(self.hero.geometry.index))
         mesh.update()
         # mesh_obj.scale = self.hero.geometry.scale
-        mesh_obj.location = self.hero.geometry.offset
+        # mesh_obj.location = self.hero.geometry.offset
         mesh.uv_textures.new()
         uv_data = mesh.uv_layers[0].data
         for i in range(len(uv_data)):
@@ -186,9 +186,9 @@ class HeroIO:
                 self.mesh_obj.shape_key_add(name=flex_name)
 
             for vertex_index, flex_vert in enumerate(flex_data):
-                # vx = self.mesh_obj.data.vertices[vertex_index].co.x
-                # vy = self.mesh_obj.data.vertices[vertex_index].co.y
-                # vz = self.mesh_obj.data.vertices[vertex_index].co.z
+                vx = self.mesh_obj.data.vertices[vertex_index].co.x
+                vy = self.mesh_obj.data.vertices[vertex_index].co.y
+                vz = self.mesh_obj.data.vertices[vertex_index].co.z
                 fx, fy, fz = flex_vert
                 self.mesh_obj.data.shape_keys.key_blocks[flex_name].data[vertex_index].co = (
-                    fx, fy, fz)
+                    fx + vx, fy + vy, fz + vz)
