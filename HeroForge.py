@@ -1,4 +1,6 @@
 import math
+from typing import List
+
 import numpy as np
 from pathlib import Path
 
@@ -25,11 +27,28 @@ class HeroGeomerty:
         self.bounds = []
         self.scale = []
         self.offset = []
+        self.bones = []  # type: List[HeroBone]
+        self.poses = []
+        self.locations = []
+
+
+class HeroBone:
+
+    def __init__(self):
+        self.name = ''
+        self.parent_id = -1
+        self.bone_id = -1
+        self.pos = []
+        self.scale = []
+        self.quat = []
+        self.rot = []
 
 
 class HeroFile:
     me = (2 ** 8) - 1
     ge = (2 ** 16) - 1
+    H = math.pow(2, 16) - 1
+    X = (math.pow(2, 16) - 2) / 2
 
     def __init__(self, path):
         self.reader = ByteIO(path=path)
@@ -90,6 +109,27 @@ class HeroFile:
         self.bit_cursor += 1
         return bit
 
+    def get_quaternion_array(self, e):
+        e *= 4
+        r = np.zeros(e)
+        for i in range(e):
+            r[i] = self.read_uint16() / self.H * 2 - 1
+        return r
+
+    def get_position_array(self, e, t):
+        n = np.zeros(e * 3)
+        for a in range(e):
+            for r in range(3):
+                n[3 * a + r] = (self.read_uint16() - self.X) / self.X * t
+        return n
+
+    def get_scale_array(self, e, t):
+        n = np.zeros(e * 3)
+        for a in range(e):
+            for r in range(3):
+                n[3 * a + r] = self.read_uint16() / self.H * t
+        return n
+
     def read(self):
         reader = self.reader
         self.version = round(reader.read_float(), 2)
@@ -109,6 +149,10 @@ class HeroFile:
         self._init_blends()
         self._init_weights()
         self._init_parent()
+        try:
+            self._init_poses();
+        except:
+            pass
 
     def get_bit(self):
         self.bit_cursor += 1
@@ -214,7 +258,8 @@ class HeroFile:
                     v_colors.append(col / 255)
                     v_colors.append(col / 255)
                     v_colors.append(col / 255)
-                self.geometry.vertex_colors[layer_name] = v_colors
+                    v_colors.append(1)
+                self.geometry.vertex_colors[layer_name] = np.array(v_colors).reshape((-1, 4))
 
     def _init_blends(self):
         if self.options['blendTargets']:
@@ -255,8 +300,8 @@ class HeroFile:
                         for t in range(self.vertex_count):
                             additional_skin_indices[t * additional_weights + (l - 4)] = self.read_uint16(
                                 2 * (t * additional_weights + l), False)
-            self.geometry.skin_indices = skin_indices.reshape((-1,weight_per_vert,))
-            self.geometry.additional_skin_indices = additional_skin_indices.reshape((-1,weight_per_vert,))
+            self.geometry.skin_indices = skin_indices.reshape((-1, weight_per_vert,))
+            self.geometry.additional_skin_indices = additional_skin_indices.reshape((-1, weight_per_vert,))
             self.i16_offset = self.i16_offset + weight_per_vert * self.vertex_count * 2;
             skin_weights = np.zeros(4 * self.vertex_count, dtype=np.float32)
             additional_skin_weights = np.zeros(additional_weights * self.vertex_count, dtype=np.float32)
@@ -270,8 +315,8 @@ class HeroFile:
                         for c in range(self.vertex_count):
                             additional_skin_weights[c * additional_weights + (f - 4)] = self.read_uint16(
                                 2 * (c * weight_per_vert + f), False) / self.ge
-            self.geometry.skin_weights = skin_weights.reshape((-1,weight_per_vert))
-            self.geometry.additional_skin_weights = additional_skin_weights.reshape((-1,weight_per_vert))
+            self.geometry.skin_weights = skin_weights.reshape((-1, weight_per_vert))
+            self.geometry.additional_skin_weights = additional_skin_weights.reshape((-1, weight_per_vert))
             self.i16_offset = self.i16_offset + weight_per_vert * self.vertex_count * 2
 
     def _init_parent(self):
@@ -285,8 +330,73 @@ class HeroFile:
                 r[n] = e if n % 4 == 0 else 0
                 i[n] = 1 if n % 4 == 0 else 0
 
-            self.geometry.skin_indices = r.reshape((-1,4))
-            self.geometry.skin_weights = i.reshape((-1,4))
+            self.geometry.skin_indices = r.reshape((-1, 4))
+            self.geometry.skin_weights = i.reshape((-1, 4))
+
+    def _init_poses(self):
+        if self.options['animations']:
+            bone_count = self.read_int8()
+            if self.options['frameMappings']:
+                n = self.read_uint16()
+                a = [self.read_uint16() for _ in range(n)]
+                if n:
+                    i = {}
+                    for s in range(n):
+                        i[a[s]] = s
+            p = self.read_float()
+            m = self.options['jointScales']
+            g = self.read_float() if m else 1
+            poses = {}
+            locators = {}
+            bones = []
+            for y in range(bone_count):
+                o = self.read_string()
+                l = self.read_uint16()
+                u = self.read_uint16()
+                # print(o, l, u)
+                v = lambda: {
+                    "pos": self.get_position_array(1, p) if self.get_bit() else self.get_position_array(u, p),
+                    "rot": self.get_quaternion_array(1) if self.get_bit() else self.get_quaternion_array(u),
+                    "scl": self.get_scale_array(1, g) if self.get_bit() else self.get_scale_array(u, g) if m else [1, 1,
+                                                                                                                   1],
+                    "frameMapping": i if self.options["frameMappings"] else None
+                }
+                if o == 'main':
+                    for S in range(l):
+                        b = self.read_uint16()
+                        w = HeroBone()
+                        w.bone_id = S
+                        w.name = self.read_string()
+                        # print(w.name)
+                        if b == 5e3:
+                            self.geometry.main_skeleton = True
+                            w.parent_id = -1
+                            print(w.name, b, S)
+                        else:
+                            w.parent_id = b
+                        k = v()
+                        w.pos = k['pos']
+                        w.quat = k['rot']
+                        w.scale = k['scl']
+                        bones.append(w)
+                elif o == 'locators':
+                    for R in range(l):
+                        bone = HeroBone()
+                        bone.name = self.read_string()
+                        C = v()
+                        bone.pos = C['pos']
+                        bone.scale = C['cls']
+                        bone.quat = C['rot']
+                        locators[bone.name] = bone
+                else:
+                    c = {}
+                    for x in range(l):
+                        c[self.read_string()] = v()
+                    poses[o] = c
+            # print(h)
+            self.geometry.bones = bones
+            self.geometry.poses = poses
+            self.geometry.locations = locators
 
 
 if __name__ == '__main__':
