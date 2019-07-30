@@ -2,7 +2,7 @@ import random
 from pathlib import Path
 from typing import Dict
 
-from HeroForge.HeroForge import HeroBone
+from .HeroForge import HeroBone
 from . import HeroForge
 
 import bpy
