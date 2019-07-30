@@ -165,7 +165,10 @@ class HeroIO:
                 color_layer = self.mesh_data.vertex_colors[layer].data
                 for i in range(len(color_layer)):
                     u = v_color[self.mesh_data.loops[i].vertex_index]
-                    color_layer[i].color = u
+                    try:
+                        color_layer[i].color = u
+                    except:
+                        color_layer[i].color = u[:3]
 
             bpy.ops.object.mode_set(mode='OBJECT')
 
