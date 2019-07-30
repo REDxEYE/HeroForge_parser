@@ -300,8 +300,8 @@ class HeroFile:
                         for t in range(self.vertex_count):
                             additional_skin_indices[t * additional_weights + (l - 4)] = self.read_uint16(
                                 2 * (t * additional_weights + l), False)
-            self.geometry.skin_indices = skin_indices.reshape((-1, weight_per_vert,))
-            self.geometry.additional_skin_indices = additional_skin_indices.reshape((-1, weight_per_vert,))
+            self.geometry.skin_indices = skin_indices.reshape((-1, u,))
+            self.geometry.additional_skin_indices = additional_skin_indices.reshape((-1, u,))
             self.i16_offset = self.i16_offset + weight_per_vert * self.vertex_count * 2;
             skin_weights = np.zeros(4 * self.vertex_count, dtype=np.float32)
             additional_skin_weights = np.zeros(additional_weights * self.vertex_count, dtype=np.float32)
@@ -315,7 +315,7 @@ class HeroFile:
                         for c in range(self.vertex_count):
                             additional_skin_weights[c * additional_weights + (f - 4)] = self.read_uint16(
                                 2 * (c * weight_per_vert + f), False) / self.ge
-            self.geometry.skin_weights = skin_weights.reshape((-1, weight_per_vert))
+            self.geometry.skin_weights = skin_weights.reshape((-1, u))
             self.geometry.additional_skin_weights = additional_skin_weights.reshape((-1, weight_per_vert))
             self.i16_offset = self.i16_offset + weight_per_vert * self.vertex_count * 2
 

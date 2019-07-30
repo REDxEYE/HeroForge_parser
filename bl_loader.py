@@ -148,7 +148,10 @@ class HeroIO:
         mesh_obj.select = True
         bpy.context.scene.objects.active = mesh_obj
         bpy.ops.object.shade_smooth()
-        mesh.normals_split_custom_set_from_vertices(self.hero.geometry.normals)
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.remove_doubles(threshold=0.0001)
+        bpy.ops.object.mode_set(mode='OBJECT')
+        # mesh.normals_split_custom_set_from_vertices(self.hero.geometry.normals)
         # mesh.normals_split_custom_set(normals)
         mesh.use_auto_smooth = True
         self.mesh_data = mesh
