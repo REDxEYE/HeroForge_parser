@@ -144,19 +144,12 @@ class HeroIO:
                         bone_name = str(bone)  # ['name']
                         weight_groups[bone_name].add([n], weight, 'REPLACE')
         self.get_material('WHITE', mesh_obj)
+        self.mesh_data = mesh
+        self.mesh_obj = mesh_obj
         bpy.ops.object.select_all(action="DESELECT")
         mesh_obj.select = True
         bpy.context.scene.objects.active = mesh_obj
-        bpy.ops.object.shade_smooth()
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.mesh.remove_doubles(threshold=0.0001)
-        bpy.ops.object.mode_set(mode='OBJECT')
-        # mesh.normals_split_custom_set_from_vertices(self.hero.geometry.normals)
-        # mesh.normals_split_custom_set(normals)
-        mesh.use_auto_smooth = True
-        self.mesh_data = mesh
-        self.mesh_obj = mesh_obj
-
+        self.add_flexes()
         if self.hero.geometry.vertex_colors:
             bpy.ops.object.select_all(action="DESELECT")
             for layer, v_color in self.hero.geometry.vertex_colors.items():
@@ -174,6 +167,14 @@ class HeroIO:
                         color_layer[i].color = u[:3]
 
             bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.shade_smooth()
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.remove_doubles(threshold=0.0001)
+        bpy.ops.object.mode_set(mode='OBJECT')
+        # mesh.normals_split_custom_set_from_vertices(self.hero.geometry.normals)
+        # mesh.normals_split_custom_set(normals)
+        mesh.use_auto_smooth = True
+
 
     def create_models(self):
         if self.hero.geometry.main_skeleton:
@@ -182,14 +183,11 @@ class HeroIO:
             self.armature = None
             self.armature_obj = None
         self.build_meshes()
-        self.add_flexes()
+        # self.add_flexes()
 
     def add_flexes(self):
-        # Creating base shape key
         self.mesh_obj.shape_key_add(name='base')
         for flex_name, flex_data in self.hero.geometry.shape_key_data.items():
-            # if blender mesh_data does not have FLEX_NAME - create it,
-            # otherwise work with existing
             if not self.mesh_obj.data.shape_keys.key_blocks.get(flex_name):
                 self.mesh_obj.shape_key_add(name=flex_name)
 
