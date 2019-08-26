@@ -4,7 +4,12 @@ from typing import List
 import numpy as np
 from pathlib import Path
 
-from .ByteIO import ByteIO, split
+try:
+    from .ByteIO import ByteIO, split
+except ImportError:
+    from ByteIO import ByteIO, split
+bone_names = {}
+armature_name = ''
 
 
 class HeroGeomerty:
